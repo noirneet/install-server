@@ -57,6 +57,7 @@ apt install -y ufw
 ufw allow OpenSSH
 ufw allow 'Nginx Full' || true
 ufw allow 1883
+ufw allow 8080 # phpmyadmin
 ufw allow 9001
 ufw --force enable
 
