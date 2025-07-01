@@ -84,15 +84,23 @@ if [ ! -f /usr/local/bin/composer ]; then
   curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 fi
 
-if ! grep -q "composer81" ~/.zshrc; then
-  cat <<'EOL' >> ~/.zshrc
+# Tambahkan alias hanya jika belum ada
+ZSHRC="$HOME/.zshrc"
+if ! grep -q "composer81" "$ZSHRC"; then
+  cat <<'EOL' >> "$ZSHRC"
+
+# Composer aliases for multiple PHP versions
 alias composer81='php8.1 /usr/local/bin/composer'
 alias composer82='php8.2 /usr/local/bin/composer'
 alias composer83='php8.3 /usr/local/bin/composer'
 alias composer84='php8.4 /usr/local/bin/composer'
 EOL
-  source ~/.zshrc
+  echo "✅ Composer aliases added to ~/.zshrc"
+  echo "ℹ️  Please run 'source ~/.zshrc' inside Zsh shell to use the aliases."
+else
+  echo "✅ Composer aliases already exist in ~/.zshrc"
 fi
+
 
 ### 8. Install Mosquitto MQTT
 log_step "8/13" "Installing Mosquitto MQTT"
