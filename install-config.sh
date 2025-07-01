@@ -84,14 +84,14 @@ if [ ! -f /usr/local/bin/composer ]; then
   curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 fi
 
-if ! grep -q "composer81" ~/.bashrc; then
-  cat <<'EOL' >> ~/.bashrc
+if ! grep -q "composer81" ~/.zshrc; then
+  cat <<'EOL' >> ~/.zshrc
 alias composer81='php8.1 /usr/local/bin/composer'
 alias composer82='php8.2 /usr/local/bin/composer'
 alias composer83='php8.3 /usr/local/bin/composer'
 alias composer84='php8.4 /usr/local/bin/composer'
 EOL
-  source ~/.bashrc
+  source ~/.zshrc
 fi
 
 ### 8. Install Mosquitto MQTT
