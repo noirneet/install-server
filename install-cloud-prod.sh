@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# === Konfigurasi ===
+# === Konfigurasi umum ===
 VERSION="v2.35.0"
 FB_BIN="/usr/local/bin/filebrowser"
 FB_CONF_DIR="/etc/filebrowser"
@@ -15,18 +15,41 @@ DOMAIN="cloud.midragondev.my.id"
 ADMIN_USER="admin"
 ADMIN_PASS="nexaryncloud2025;"
 
-echo "📦 Mengunduh dan memasang Filebrowser..."
-wget -q https://github.com/filebrowser/filebrowser/releases/download/$VERSION/linux-amd64-filebrowser.tar.gz
-tar -xzf linux-amd64-filebrowser.tar.gz
-sudo mv filebrowser "$FB_BIN"
-rm linux-amd64-filebrowser.tar.gz
+function uninstall_prod() {
+  echo "🧹 Menghapus Filebrowser production..."
 
-echo "📁 Menyiapkan direktori konfigurasi dan root cloud..."
-sudo mkdir -p "$FB_CONF_DIR" "$FB_ROOT" "$FB_TMP"
-sudo chown -R $FB_USER:$FB_USER "$FB_CONF_DIR" "$(dirname $FB_ROOT)" "$FB_TMP"
+  sudo systemctl stop filebrowser || true
+  sudo systemctl disable filebrowser || true
+  sudo rm -f "$FB_SYSTEMD"
+  sudo systemctl daemon-reload
 
-echo "📝 Membuat file konfigurasi JSON..."
-sudo tee "$FB_CONF_DIR/filebrowser.json" > /dev/null <<EOF
+  sudo rm -f "$FB_BIN"
+  sudo rm -rf "$FB_CONF_DIR"
+  sudo rm -rf "$FB_ROOT"
+  sudo rm -rf "$FB_TMP"
+
+  sudo rm -f "$FB_NGINX_CONF"
+  sudo rm -f /etc/nginx/sites-enabled/filebrowser-prod.conf
+  sudo nginx -t && sudo systemctl reload nginx
+
+  sudo ufw delete allow 8081 || true
+
+  echo "✅ Filebrowser production berhasil dihapus!"
+}
+
+function install_prod() {
+  echo "📦 Mengunduh dan memasang Filebrowser production..."
+  wget -q https://github.com/filebrowser/filebrowser/releases/download/$VERSION/linux-amd64-filebrowser.tar.gz
+  tar -xzf linux-amd64-filebrowser.tar.gz
+  sudo mv filebrowser "$FB_BIN"
+  rm linux-amd64-filebrowser.tar.gz
+
+  echo "📁 Membuat direktori root dan konfigurasi..."
+  sudo mkdir -p "$FB_CONF_DIR" "$FB_ROOT" "$FB_TMP"
+  sudo chown -R $FB_USER:$FB_USER "$FB_CONF_DIR" "$(dirname $FB_ROOT)" "$FB_TMP"
+
+  echo "📝 Menulis konfigurasi JSON..."
+  sudo tee "$FB_CONF_DIR/filebrowser.json" > /dev/null <<EOF
 {
   "port": 8081,
   "baseURL": "",
@@ -41,8 +64,8 @@ sudo tee "$FB_CONF_DIR/filebrowser.json" > /dev/null <<EOF
 }
 EOF
 
-echo "🛠️ Membuat file systemd service..."
-sudo tee "$FB_SYSTEMD" > /dev/null <<EOF
+  echo "🛠️ Membuat systemd service..."
+  sudo tee "$FB_SYSTEMD" > /dev/null <<EOF
 [Unit]
 Description=FileBrowser
 After=network.target
@@ -56,20 +79,20 @@ User=$FB_USER
 WantedBy=multi-user.target
 EOF
 
-echo "👤 Inisialisasi database dan admin user..."
-sudo -u $FB_USER $FB_BIN -c "$FB_CONF_DIR/filebrowser.json" &
-sleep 3
-pkill -f "$FB_BIN -c $FB_CONF_DIR/filebrowser.json" || true
+  echo "👤 Inisialisasi database dan user admin..."
+  sudo -u $FB_USER $FB_BIN -c "$FB_CONF_DIR/filebrowser.json" &
+  sleep 3
+  pkill -f "$FB_BIN -c $FB_CONF_DIR/filebrowser.json" || true
 
-sudo -u $FB_USER $FB_BIN users add $ADMIN_USER "$ADMIN_PASS" \
-  --database "$FB_DB" \
-  --perm.admin || \
-sudo -u $FB_USER $FB_BIN users update $ADMIN_USER \
-  --password "$ADMIN_PASS" \
-  --database "$FB_DB"
+  sudo -u $FB_USER $FB_BIN users add $ADMIN_USER "$ADMIN_PASS" \
+    --database "$FB_DB" \
+    --perm.admin || \
+  sudo -u $FB_USER $FB_BIN users update $ADMIN_USER \
+    --password "$ADMIN_PASS" \
+    --database "$FB_DB"
 
-echo "🌐 Konfigurasi NGINX untuk production domain..."
-sudo tee "$FB_NGINX_CONF" > /dev/null <<EOF
+  echo "🌐 Membuat konfigurasi NGINX production ($DOMAIN)..."
+  sudo tee "$FB_NGINX_CONF" > /dev/null <<EOF
 server {
     listen 80;
     server_name $DOMAIN;
@@ -95,16 +118,29 @@ server {
 }
 EOF
 
-sudo ln -sf "$FB_NGINX_CONF" /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+  sudo ln -sf "$FB_NGINX_CONF" /etc/nginx/sites-enabled/
+  sudo nginx -t && sudo systemctl reload nginx
 
-echo "🚀 Menyalakan Filebrowser service..."
-sudo systemctl daemon-reload
-sudo systemctl enable --now filebrowser
+  echo "🚀 Mengaktifkan Filebrowser service..."
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now filebrowser
 
-echo "🔥 Buka port firewall hanya untuk 8081 (NGINX pakai 80)..."
-sudo ufw allow 8081
+  echo "🔥 Membuka port firewall (8081)..."
+  sudo ufw allow 8081
 
-echo "✅ Production Filebrowser aktif!"
-echo "🌐 Akses di: http://$DOMAIN"
-echo "🔐 Login: $ADMIN_USER / $ADMIN_PASS"
+  echo "✅ Instalasi production selesai!"
+  echo "🌐 Akses: http://$DOMAIN"
+  echo "🔐 Login: $ADMIN_USER / $ADMIN_PASS"
+}
+
+# === Mode CLI ===
+if [[ "$1" == "--install" ]]; then
+  install_prod
+elif [[ "$1" == "--reset" ]]; then
+  uninstall_prod
+else
+  echo "❌ Gunakan perintah yang benar:"
+  echo "   ./install-cloud-prod.sh --install   ← untuk instalasi production"
+  echo "   ./install-cloud-prod.sh --reset     ← untuk menghapus production"
+  exit 1
+fi
