@@ -41,7 +41,7 @@ fi
 
 ### 4. Install Tools & NGINX
 log_step "4/13" "Installing tools & NGINX"
-apt install -y git unzip curl wget software-properties-common ca-certificates lsb-release htop neofetch
+apt install -y git openssh-server unzip curl wget software-properties-common ca-certificates lsb-release htop neofetch
 
 if ! is_installed nginx; then
   apt install -y nginx
