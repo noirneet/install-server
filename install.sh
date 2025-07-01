@@ -149,8 +149,9 @@ GRANT ALL PRIVILEGES ON *.* TO 'nexaryn'@'localhost' WITH GRANT OPTION;
 FLUSH PRIVILEGES;
 EOF
 
-### 10. Install phpMyAdmin
-log_step "10/13" "Installing phpMyAdmin"
+### 10. Install phpMyAdmin + NGINX config
+log_step "10/13" "Installing phpMyAdmin and NGINX integration"
+
 if ! is_installed phpmyadmin; then
   echo 'phpmyadmin phpmyadmin/dbconfig-install boolean true' | debconf-set-selections
   echo 'phpmyadmin phpmyadmin/app-password-confirm password root' | debconf-set-selections
@@ -161,6 +162,42 @@ if ! is_installed phpmyadmin; then
 else
   echo "✅ phpMyAdmin already installed."
 fi
+
+# Konfigurasi phpMyAdmin di NGINX (tanpa domain, untuk akses via IP)
+cat <<EOF > /etc/nginx/sites-available/phpmyadmin.conf
+server {
+    listen 8080;
+    server_name _;
+
+    root /var/www/html;
+    index index.php index.html;
+
+    location /phpmyadmin {
+        alias /usr/share/phpmyadmin;
+        index index.php;
+
+        location ~ ^/phpmyadmin/(.+\.php)$ {
+            alias /usr/share/phpmyadmin/\$1;
+            fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME /usr/share/phpmyadmin/\$1;
+        }
+
+        location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+            alias /usr/share/phpmyadmin/\$1;
+        }
+    }
+
+    location /phpMyAdmin {
+        rewrite ^/* /phpmyadmin last;
+    }
+}
+EOF
+
+# Enable konfigurasi dan reload nginx
+ln -sf /etc/nginx/sites-available/phpmyadmin.conf /etc/nginx/sites-enabled/phpmyadmin.conf
+nginx -t && systemctl reload nginx
 
 ### 11. Install Certbot
 log_step "11/13" "Installing Certbot"
